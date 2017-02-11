@@ -14,9 +14,14 @@ Usage:
 Options:
     --help, -h          Display this message
     --verbose, -v       Show extra logging info
+    --ttl TTL, -t TTL   Override existing and/or default TTL
 
 To protect incorrect configurations or accidental typos, this script will not
 overwrite any records that do not match the expected A-record type.
+
+If the target record already exists, the existing TTL value will be used.
+If the target record does not exist, a TTL of 60 seconds will be used.
+You can override this with the --ttl option (existing TTL will be ignored).
 """
 from docopt import docopt
 import logging
@@ -59,7 +64,7 @@ class DynamicDnsRecord(object):
 
         self.hosted_zone = self.r53_hosted_zones[self.domain_name]
         self.actual_ip = ipgetter.myip()
-        self.current_ip = self.get_current_ip()
+        self.current_ip, self.current_ttl = self.get_current_record()
 
     @property
     def r53_hosted_zones(self):
@@ -119,13 +124,13 @@ class DynamicDnsRecord(object):
 
         return self._domain_name
 
-    def get_current_ip(self):
+    def get_current_record(self):
         """
-        Return the IP the DNS record is currently set to in Route53. If a
-        matching record does not exist, return None.
+        Return existing IP and TTL of the target record (as reported by R53)
+        If a matching record does not exist, return None for both.
 
         Returns:
-            str or None
+            tuple: ip_address (str or None), ttl (str or None)
         """
         # Get a list of records from our target record's hosted zone.
         # We might get a truncated list, so loop until we have them all
@@ -155,12 +160,14 @@ class DynamicDnsRecord(object):
 
         # Now that we have our complete list of records, find ours
         our_record_targets = list()
+        our_record_ttl = None
         for record in record_sets:
             # Remove the trailing '.'
             if '.'.join(record['Name'].split('.')[:-1]) == self.target_record:
                 # Only match A records
                 if record['Type'] == 'A':
                     our_record_targets = record['ResourceRecords']
+                    our_record_ttl = str(record['TTL'])
 
         # Validate our record targets agains expected values
         if len(our_record_targets) > 1:
@@ -170,9 +177,49 @@ class DynamicDnsRecord(object):
                    'targets (or leave just one).').format(self.target_record)
             raise InvalidRecordTargetError(msg)
         elif len(our_record_targets) < 1:
-            return None
+            return None, our_record_ttl
         else:
-            return our_record_targets[0]['Value']
+            return our_record_targets[0]['Value'], our_record_ttl
+
+    def update_target_record_value(self, ttl=None):
+        """
+        Check if the current value of the record differs from our actual public
+        IP address and update the record in R53 if it does
+
+        Args:
+            ttl (str): optional TTL to specify for the target
+        """
+        assert isinstance(ttl, (str, type(None)))
+        assert isinstance(self.current_ttl, (str, type(None)))
+        assert isinstance(self.current_ip, (str, type(None)))
+        assert isinstance(self.actual_ip, str)
+
+        # If the user specified a TTL override, use that. Otherwise, use the
+        # existing target record's TTL. If the target record doesn't exist,
+        # use a sane default of 60.
+        if ttl is None:
+            if self.current_ttl is not None:
+                ttl = self.current_ttl
+            else:
+                ttl = '60'
+
+        # Only make the change if the IP is actually different
+        if self.actual_ip != self.current_ip:
+
+            # Construct the changebatch to be sent to Route53
+            changebatch = {'Changes': [
+                {'Action': 'UPSERT',
+                 'ResourceRecordSet': {
+                     'Name': self.target_record,
+                     'Type': 'A',
+                     'TTL': int(ttl),
+                     'ResourceRecords': [{'Value': self.actual_ip}]
+                 }}]}
+
+            # Send the change request to the Route53 API
+            self._r53_api.change_resource_record_sets(
+                HostedZoneId=self.hosted_zone,
+                ChangeBatch=changebatch)
 
 
 def main():
@@ -202,6 +249,10 @@ def main():
 
     # Init our class object
     dns_record = DynamicDnsRecord(args['<target_record>'])
+
+    # Update the DNS record if it needs to be
+    dns_record.update_target_record_value(ttl=args['--ttl'])
+
 
 if __name__ == "__main__":
     main()
