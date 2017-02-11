@@ -30,6 +30,13 @@ log = logging.getLogger(__name__)
 log.propagate = False
 
 
+class InvalidRecordTargetError(Exception):
+    """
+    Exception to be raised if the targets for a ResourceRecordSet is not
+    what we expect it to be.
+    """
+
+
 class DynamicDnsRecord(object):
     """
     Class to manage a Dynamic DNS record that needs to be kept up-to-date
@@ -52,6 +59,7 @@ class DynamicDnsRecord(object):
 
         self.hosted_zone = self.r53_hosted_zones[self.domain_name]
         self.actual_ip = ipgetter.myip()
+        self.current_ip = self.get_current_ip()
 
     @property
     def r53_hosted_zones(self):
@@ -110,6 +118,61 @@ class DynamicDnsRecord(object):
             self._domain_name = '.'.join(domain)
 
         return self._domain_name
+
+    def get_current_ip(self):
+        """
+        Return the IP the DNS record is currently set to in Route53. If a
+        matching record does not exist, return None.
+
+        Returns:
+            str or None
+        """
+        # Get a list of records from our target record's hosted zone.
+        # We might get a truncated list, so loop until we have them all
+        record_sets = list()
+        start_record_name = self.target_record  # might as well start here
+        start_record_type = 'A'  # start with A-records; that's what we want
+        while True:
+
+            # Get a batch of 100 records for the hosted zone, starting with
+            # our record name and type (this will reduce the unnecessary
+            # records given back)
+            response = self._r53_api.list_resource_record_sets(
+                HostedZoneId=self.hosted_zone,
+                MaxItems='3',
+                StartRecordName=start_record_name,
+                StartRecordType=start_record_type)
+
+            # Add the batch's record list to ours
+            record_sets.extend(response['ResourceRecordSets'])
+
+            # If the batch is truncated, we'll have to loop again
+            if response['IsTruncated'] is True:
+                start_record_name = response['NextRecordName']
+                start_record_type = response['NextRecordType']
+            else:
+                break
+
+        # Now that we have our complete list of records, find ours
+        our_record_targets = list()
+        for record in record_sets:
+            # Remove the trailing '.'
+            if '.'.join(record['Name'].split('.')[:-1]) == self.target_record:
+                # Only match A records
+                if record['Type'] == 'A':
+                    our_record_targets = record['ResourceRecords']
+
+        # Validate our record targets agains expected values
+        if len(our_record_targets) > 1:
+            msg = ('Error: It appears the specified record \'{}\' has ' +
+                   'more than one target! Are you sure you specified the ' +
+                   'correct record? If so, please manually remove the ' +
+                   'targets (or leave just one).').format(self.target_record)
+            raise InvalidRecordTargetError(msg)
+        elif len(our_record_targets) < 1:
+            return None
+        else:
+            return our_record_targets[0]['Value']
 
 
 def main():
