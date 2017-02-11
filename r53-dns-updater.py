@@ -16,8 +16,10 @@ Options:
     --verbose, -v       Show extra logging info
     --ttl TTL, -t TTL   Override existing and/or default TTL
 
-To protect incorrect configurations or accidental typos, this script will not
-overwrite any records that do not match the expected A-record type.
+To protect incorrect configurations or accidental typos, r53-dns-updater won't
+overwrite any records that:
+    - isn't already an 'A' record
+    - has more than one target IP (i.e. round-robin)
 
 If the target record already exists, the existing TTL value will be used.
 If the target record does not exist, a TTL of 60 seconds will be used.
