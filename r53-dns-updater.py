@@ -23,6 +23,7 @@ import logging
 import logging.handlers
 import boto3
 import sys
+import ipgetter
 
 # Set up global logging object
 log = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class DynamicDnsRecord(object):
         self._domain_name = None  # str()
 
         self.hosted_zone = self.r53_hosted_zones[self.domain_name]
+        self.actual_ip = ipgetter.myip()
 
     @property
     def r53_hosted_zones(self):
