@@ -255,7 +255,7 @@ def main():
     if args['--verbose']:
         log_level = 'INFO'
     else:  # default to ERROR if no override is given
-        log_level = 'ERROR'
+        log_level = 'WARNING'
     log_level_num = getattr(logging, log_level.upper(), None)
     if not isinstance(log_level_num, int):
         raise ValueError('Invalid log level: {}'.format(log_level))
