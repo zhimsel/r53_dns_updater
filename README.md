@@ -8,7 +8,7 @@ This means it can be used as a cheap and easy way to keep a DNS record pointed t
 
 ## Usage
 
-Please see the [`r53-dns-updater`'s docstring](https://github.com/zhimsel/r53-dns-updater/blob/master/r53-dns-updater.py#L2) for information on how to use this script.
+Please see the [`r53-dns-updater`'s docstring](https://github.com/zhimsel/r53-dns-updater/blob/master/r53-dns-updater.py#L2) for information on how to use this script (or simply run `r53-dns-updater --help`).
 
 `r53-dns-updater` is intended to be run via a scheduler (like `cron`). Simply run it however often you want, and it'll do the rest.
 
