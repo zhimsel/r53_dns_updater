@@ -123,6 +123,10 @@ class DynamicDnsRecord(object):
                                      self.target_record)
                         sys.exit(1)
             self._domain_name = '.'.join(domain)
+            log.info('Determined the target record \'%s\' belongs to ' +
+                     'the hosted zone \'%s\' (%s)',
+                     self.target_record, self._domain_name,
+                     self.r53_hosted_zones[self._domain_name])
 
         return self._domain_name
 
@@ -155,6 +159,7 @@ class DynamicDnsRecord(object):
 
             # If the batch is truncated, we'll have to loop again
             if response['IsTruncated'] is True:
+                log.debug('R53 API record set list response was truncated')
                 start_record_name = response['NextRecordName']
                 start_record_type = response['NextRecordType']
             else:
@@ -179,8 +184,11 @@ class DynamicDnsRecord(object):
                    'targets (or leave just one).').format(self.target_record)
             raise InvalidRecordTargetError(msg)
         elif len(our_record_targets) < 1:
+            log.info('Target record seems to not exist')
             return None, our_record_ttl
         else:
+            log.info('Existing record found with target of %s and TTL of %s',
+                     our_record_targets[0]['Value'], our_record_ttl)
             return our_record_targets[0]['Value'], our_record_ttl
 
     def update_target_record_value(self, ttl=None):
@@ -202,11 +210,21 @@ class DynamicDnsRecord(object):
         if ttl is None:
             if self.current_ttl is not None:
                 ttl = self.current_ttl
+                log.info('Using existing TTL value of %s', ttl)
             else:
                 ttl = '60'
+                log.info('No existing record found, using default TTL of %s',
+                         ttl)
+        else:
+            log.info('Overriding TTL with provided value of %s', ttl)
 
         # Only make the change if the IP is actually different
         if self.actual_ip != self.current_ip:
+            log.warning('Updating out-of-date DNS record \'%s\' ' +
+                        'to point to %s (previous target: %s)',
+                        self.target_record,
+                        self.actual_ip,
+                        self.current_ip)
 
             # Construct the changebatch to be sent to Route53
             changebatch = {'Changes': [
@@ -222,6 +240,9 @@ class DynamicDnsRecord(object):
             self._r53_api.change_resource_record_sets(
                 HostedZoneId=self.hosted_zone,
                 ChangeBatch=changebatch)
+
+        else:
+            log.info('Target DNS record is already up-to-date, nothing to do')
 
 
 def main():
@@ -252,7 +273,7 @@ def main():
     # Init our class object
     dns_record = DynamicDnsRecord(args['<target_record>'])
 
-    # Update the DNS record if it needs to be
+    # Update the DNS record if it's out-of-date
     dns_record.update_target_record_value(ttl=args['--ttl'])
 
 
