@@ -213,7 +213,6 @@ class DynamicDnsRecord(object):
         except Exception as e:
             log.error('Failed to send SNS message: %s', e)
 
-
     def update_target_record_value(self, ttl=None):
         """
         Check if the current value of the record differs from our actual public
