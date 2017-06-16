@@ -12,9 +12,10 @@ Usage:
     r53-dns-updater [options] <target_record>
 
 Options:
-    --help, -h          Display this message
-    --verbose, -v       Show extra logging info
-    --ttl TTL, -t TTL   Override existing and/or default TTL
+    --help, -h            Display this message
+    --verbose, -v         Show extra logging info
+    --ttl TTL, -t TTL     Override existing and/or default TTL
+    --sns SNS_TOPIC_ARN   Optional SNS topic ARN to notify on record updates
 
 To protect incorrect configurations or accidental typos, r53-dns-updater won't
 overwrite any records that:
@@ -49,16 +50,18 @@ class DynamicDnsRecord(object):
     Class to manage a Dynamic DNS record that needs to be kept up-to-date
     """
 
-    def __init__(self, target_record):
+    def __init__(self, target_record, sns_arn=None):
         """
         Args:
-            target_record (str): the DNS record to update
+            target_record (str): The DNS record to update
+            sns_arn (str): Optional SNS topic to notify on record changes
         """
         assert isinstance(target_record, str)
 
         # Init some core class objects
         self._r53_api = boto3.client('route53')
         self.target_record = target_record
+        self.sns_arn = sns_arn
 
         # Init lazy-load properties
         self._r53_hosted_zones = None  # dict()
@@ -191,6 +194,26 @@ class DynamicDnsRecord(object):
                      our_record_targets[0]['Value'], our_record_ttl)
             return our_record_targets[0]['Value'], our_record_ttl
 
+    def publish_to_sns(self, msg):
+        """
+        Attempt to publish a message to the provided SNS topic
+
+        Args:
+            msg (str): body for the SNS message
+        """
+        assert isinstance(msg, str)
+
+        # Determine which region we need to use, because the 'default' region
+        # (as set by config) needs to match the region of the SNS topic
+        aws_region = self.sns_arn.split(':')[3]
+        sns = boto3.client('sns', region_name=aws_region)
+
+        try:
+            sns.publish(TopicArn=self.sns_arn, Message=msg)
+        except Exception as e:
+            log.error('Failed to send SNS message: %s', e)
+
+
     def update_target_record_value(self, ttl=None):
         """
         Check if the current value of the record differs from our actual public
@@ -241,6 +264,12 @@ class DynamicDnsRecord(object):
                 HostedZoneId=self.hosted_zone,
                 ChangeBatch=changebatch)
 
+            # If requested, send an SNS message to alert that the IP changed
+            if self.sns_arn:
+                self.publish_to_sns(
+                    'IP for DNS record {} changed to {}'.format(
+                        self.target_record, self.actual_ip))
+
         else:
             log.info('Target DNS record is already up-to-date, nothing to do')
 
@@ -271,7 +300,8 @@ def main():
     log.addHandler(log_console)
 
     # Init our class object
-    dns_record = DynamicDnsRecord(args['<target_record>'])
+    dns_record = DynamicDnsRecord(args['<target_record>'],
+                                  args['--sns'])
 
     # Update the DNS record if it's out-of-date
     dns_record.update_target_record_value(ttl=args['--ttl'])
