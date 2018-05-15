@@ -56,7 +56,9 @@ class DynamicDnsRecord(object):
             target_record (str): The DNS record to update
             sns_arn (str): Optional SNS topic to notify on record changes
         """
-        assert isinstance(target_record, str)
+        if not isinstance(target_record, str):
+            raise TypeError(
+                "DynamicDnsRecord(): 'target_record' must be a string")
 
         # Init some core class objects
         self._r53_api = boto3.client('route53')
@@ -201,7 +203,13 @@ class DynamicDnsRecord(object):
         Args:
             msg (str): body for the SNS message
         """
-        assert isinstance(msg, str)
+        if not isinstance(msg, str):
+            raise TypeError("publish_to_sns(): 'msg' must be a string")
+
+        if isinstance(self.sns_arn, type(None)):
+            raise ValueError(
+                "publish_to_sns(): trying to publish to an SNS topic, "
+                "but 'sns_arn' was not provided")
 
         # Determine which region we need to use, because the 'default' region
         # (as set by config) needs to match the region of the SNS topic
@@ -221,10 +229,9 @@ class DynamicDnsRecord(object):
         Args:
             ttl (str): optional TTL to specify for the target
         """
-        assert isinstance(ttl, (str, type(None)))
-        assert isinstance(self.current_ttl, (str, type(None)))
-        assert isinstance(self.current_ip, (str, type(None)))
-        assert isinstance(self.actual_ip, str)
+        if not isinstance(ttl, (str, type(None))):
+            raise TypeError(
+                "update_target_record_value(): 'ttl' must be a string")
 
         # If the user specified a TTL override, use that. Otherwise, use the
         # existing target record's TTL. If the target record doesn't exist,
