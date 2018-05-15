@@ -70,7 +70,7 @@ class DynamicDnsRecord(object):
         self._domain_name = None  # str()
 
         self.hosted_zone = self.r53_hosted_zones[self.domain_name]
-        self.actual_ip = ipgetter.myip()
+        self.actual_ip = self.get_public_ip()
         self.current_ip, self.current_ttl = self.get_current_record()
 
     @property
@@ -134,6 +134,40 @@ class DynamicDnsRecord(object):
                      self.r53_hosted_zones[self._domain_name])
 
         return self._domain_name
+
+    def get_public_ip(self, max_tries=None):
+        """
+        Get the actual public IP of the internet connection we're on.
+
+        Also check for consistency and "correctness" in the responses from the
+        public "IP Check" services, as these services may return bad data or no
+        data at all. This function checks two separate services and only
+        returns an IP if they both match.
+
+        Args:
+            max_tries (int): optional; override default max-attempts (5)
+
+        Returns:
+            str: public IP address
+        """
+        candidate_ip = 'foo'
+        check_ip = 'bar'
+        tries = 0
+        if isinstance(max_tries, type(None)):
+            max_tries = 5  # default to 5 tries if no override is given
+        elif not isinstance(max_tries, int):
+            raise TypeError("get_public_ip(): 'max_tries' must be an int")
+
+        while candidate_ip != check_ip:
+            if tries > max_tries:
+                raise ValueError(
+                    "get_public_ip(): could not determine public IP address "
+                    "after {} attempts!".format(tries))
+            tries += 1
+            candidate_ip = ipgetter.myip()
+            check_ip = ipgetter.myip()
+
+        return candidate_ip
 
     def get_current_record(self):
         """
