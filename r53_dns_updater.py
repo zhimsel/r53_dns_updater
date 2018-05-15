@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""r53-dns-updater
+"""r53_dns_updater
 
 Gets the public IP address of the host and updates a given Route53 record
 
@@ -8,8 +8,8 @@ boto3 searches. For more information on setting up your credentials, see:
 http://boto3.readthedocs.io/en/latest/guide/configuration.html
 
 Usage:
-    r53-dns-updater --help
-    r53-dns-updater [options] <target_record>
+    r53_dns_updater --help
+    r53_dns_updater [options] <target_record>
 
 Options:
     --help, -h            Display this message
@@ -17,7 +17,7 @@ Options:
     --ttl TTL, -t TTL     Override existing and/or default TTL
     --sns SNS_TOPIC_ARN   Optional SNS topic ARN to notify on record updates
 
-To protect incorrect configurations or accidental typos, r53-dns-updater won't
+To protect incorrect configurations or accidental typos, r53_dns_updater won't
 overwrite any records that:
     - isn't already an 'A' record
     - has more than one target IP (i.e. round-robin)
