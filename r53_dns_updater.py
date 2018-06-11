@@ -31,7 +31,8 @@ import logging
 import logging.handlers
 import boto3
 import sys
-import ipgetter
+import requests
+import ipaddress
 
 # Set up global logging object
 log = logging.getLogger(__name__)
@@ -141,8 +142,8 @@ class DynamicDnsRecord(object):
 
         Also check for consistency and "correctness" in the responses from the
         public "IP Check" services, as these services may return bad data or no
-        data at all. This function checks two separate services and only
-        returns an IP if they both match.
+        data at all. This function checks the retrieved IP address for validity
+        and retries a few times until it gets a valid one.
 
         Args:
             max_tries (int): optional; override default max-attempts (5)
@@ -150,24 +151,35 @@ class DynamicDnsRecord(object):
         Returns:
             str: public IP address
         """
-        candidate_ip = 'foo'
-        check_ip = 'bar'
         tries = 0
         if isinstance(max_tries, type(None)):
             max_tries = 5  # default to 5 tries if no override is given
         elif not isinstance(max_tries, int):
             raise TypeError("get_public_ip(): 'max_tries' must be an int")
 
-        while candidate_ip != check_ip:
+        # Attempt to resolve public IP, up to a maximum number of retries
+        while True:
+            tries += 1
             if tries > max_tries:
                 raise ValueError(
                     "get_public_ip(): could not determine public IP address "
                     "after {} attempts!".format(tries))
-            tries += 1
-            candidate_ip = ipgetter.myip()
-            check_ip = ipgetter.myip()
 
-        return candidate_ip
+            # Get our public IP from AWS's service
+            log.info('Getting public IP address from AWS: attempt %s', tries)
+            response = requests.get('http://checkip.amazonaws.com')
+            candidate_ip = response.text.strip('\n')
+            log.info("Found our actual public IP to be %s",
+                     candidate_ip)
+
+            try:  # Return the IP only if it's valid
+                if ipaddress.ip_address(candidate_ip).is_global:
+                    return candidate_ip
+                else:
+                    log.error("'%s' does not appear to be a public IP address",
+                              candidate_ip)
+            except ValueError as e:
+                log.error(e)
 
     def get_current_record(self):
         """
