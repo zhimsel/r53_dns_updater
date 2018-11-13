@@ -365,7 +365,7 @@ def main():
                                   sns_arn=args['--sns'])
 
     # Update the DNS record if it's out-of-date
-    dns_record.update_target_record_value(ttl=int(args['--ttl']))
+    dns_record.update_target_record_value(ttl=args['--ttl'])
 
 
 if __name__ == "__main__":
