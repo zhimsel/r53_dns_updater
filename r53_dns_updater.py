@@ -59,13 +59,9 @@ class DynamicDnsRecord(object):
             max_tries (int): How many tries to get public IP (default: 5)
             sns_arn (str): Optional SNS topic to notify on record changes
         """
-        if not isinstance(target_record, str):
-            raise TypeError(
-                "DynamicDnsRecord(): 'target_record' must be a string")
-
         # Init some core class objects
         self._r53_api = boto3.client('route53')
-        self.target_record = target_record
+        self.target_record = str(target_record)
         self.sns_arn = sns_arn
 
         # Init lazy-load properties
@@ -224,7 +220,7 @@ class DynamicDnsRecord(object):
                 # Only match A records
                 if record['Type'] == 'A':
                     our_record_targets = record['ResourceRecords']
-                    our_record_ttl = str(record['TTL'])
+                    our_record_ttl = record['TTL']
 
         # Validate our record targets agains expected values
         if len(our_record_targets) > 1:
@@ -239,7 +235,7 @@ class DynamicDnsRecord(object):
         else:
             log.info('Existing record found with target of %s and TTL of %s',
                      our_record_targets[0]['Value'], our_record_ttl)
-            return our_record_targets[0]['Value'], our_record_ttl
+            return str(our_record_targets[0]['Value']), int(our_record_ttl)
 
     def publish_to_sns(self, msg):
         """
@@ -248,9 +244,6 @@ class DynamicDnsRecord(object):
         Args:
             msg (str): body for the SNS message
         """
-        if not isinstance(msg, str):
-            raise TypeError("publish_to_sns(): 'msg' must be a string")
-
         if isinstance(self.sns_arn, type(None)):
             raise ValueError(
                 "publish_to_sns(): trying to publish to an SNS topic, "
@@ -262,7 +255,7 @@ class DynamicDnsRecord(object):
         sns = boto3.client('sns', region_name=aws_region)
 
         try:
-            sns.publish(TopicArn=self.sns_arn, Message=msg)
+            sns.publish(TopicArn=self.sns_arn, Message=str(msg))
         except Exception as e:
             log.error('Failed to send SNS message: %s', e)
 
@@ -272,12 +265,8 @@ class DynamicDnsRecord(object):
         IP address and update the record in R53 if it does
 
         Args:
-            ttl (str): optional TTL to specify for the target
+            ttl (int): optional TTL to specify for the target
         """
-        if not isinstance(ttl, (str, type(None))):
-            raise TypeError(
-                "update_target_record_value(): 'ttl' must be a string")
-
         # If the user specified a TTL override, use that. Otherwise, use the
         # existing target record's TTL. If the target record doesn't exist,
         # use a sane default of 60.
@@ -286,7 +275,7 @@ class DynamicDnsRecord(object):
                 ttl = self.current_ttl
                 log.info('Using existing TTL value of %s', ttl)
             else:
-                ttl = '60'
+                ttl = 60
                 log.info('No existing record found, using default TTL of %s',
                          ttl)
         else:
@@ -356,7 +345,7 @@ def main():
                                   sns_arn=args['--sns'])
 
     # Update the DNS record if it's out-of-date
-    dns_record.update_target_record_value(ttl=args['--ttl'])
+    dns_record.update_target_record_value(ttl=int(args['--ttl']))
 
 
 if __name__ == "__main__":
