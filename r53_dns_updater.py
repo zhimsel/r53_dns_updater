@@ -14,7 +14,9 @@ Usage:
 Options:
     --help, -h            Display this message
     --verbose, -v         Show extra logging info
-    --ttl TTL, -t TTL     Override existing and/or default TTL
+    --ttl TTL, -t TTL     Force TTL (overrides existing value).
+                            If this isn't specified, and no record exists,
+                            the default TTL of 60 will be used.
     --max-tries INT       Max attempts to get public IP [default: 5]
     --sns SNS_TOPIC_ARN   Optional SNS topic ARN to notify on record updates
 
