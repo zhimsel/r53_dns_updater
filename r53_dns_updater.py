@@ -134,7 +134,8 @@ class DynamicDnsRecord(object):
 
         return self._domain_name
 
-    def get_public_ip(self, max_tries):
+    @staticmethod
+    def get_public_ip(max_tries):
         """
         Get the actual public IP of the internet connection we're on.
 
@@ -237,11 +238,13 @@ class DynamicDnsRecord(object):
                      our_record_targets[0]['Value'], our_record_ttl)
             return str(our_record_targets[0]['Value']), int(our_record_ttl)
 
-    def publish_to_sns(self, msg):
+    @staticmethod
+    def publish_to_sns(sns_arn, msg):
         """
         Attempt to publish a message to the provided SNS topic
 
         Args:
+            sns_arn (str): ARN of the SNS topic to send to
             msg (str): body for the SNS message
         """
         if not sns_arn:
@@ -251,11 +254,11 @@ class DynamicDnsRecord(object):
 
         # Determine which region we need to use, because the 'default' region
         # (as set by config) needs to match the region of the SNS topic
-        aws_region = self.sns_arn.split(':')[3]
+        aws_region = sns_arn.split(':')[3]
         sns = boto3.client('sns', region_name=aws_region)
 
         try:
-            sns.publish(TopicArn=self.sns_arn, Message=str(msg))
+            sns.publish(TopicArn=sns_arn, Message=str(msg))
         except Exception as e:
             log.error('Failed to send SNS message: %s', e)
 
@@ -315,7 +318,8 @@ class DynamicDnsRecord(object):
             # If requested, send an SNS message to alert that the IP changed
             if self.sns_arn:
                 self.publish_to_sns(
-                    'IP for DNS record {} changed to {}'.format(
+                    sns_arn=str(self.sns_arn),
+                    msg='IP for DNS record {} changed to {}'.format(
                         self.target_record, self.actual_ip))
 
 
