@@ -282,13 +282,21 @@ class DynamicDnsRecord(object):
                          ttl)
 
         # Only make the change if the IP is actually different
+        outdated = False
         if self.actual_ip != self.current_ip:
-            log.warning('Updating out-of-date DNS record \'%s\' '
-                        'to point to %s (previous target: %s)',
-                        self.target_record,
-                        self.actual_ip,
-                        self.current_ip)
+            log.warning("Updating out-of-date DNS record '%s': Actual IP (%s) "
+                        "does not match existing record value (%s)",
+                        self.target_record, self.actual_ip, self.current_ip)
+            outdated = True
+        elif ttl != self.current_ttl:
+            log.warning("Updating out-of-date DNS record '%s': "
+                        "Desired TTL (%s) does not match existing value (%s)",
+                        self.target_record, ttl, self.current_ttl)
+            outdated = True
+        else:
+            log.info('Target DNS record is already up-to-date, nothing to do')
 
+        if outdated:
             # Construct the changebatch to be sent to Route53
             changebatch = {'Changes': [
                 {'Action': 'UPSERT',
@@ -309,9 +317,6 @@ class DynamicDnsRecord(object):
                 self.publish_to_sns(
                     'IP for DNS record {} changed to {}'.format(
                         self.target_record, self.actual_ip))
-
-        else:
-            log.info('Target DNS record is already up-to-date, nothing to do')
 
 
 def main():
