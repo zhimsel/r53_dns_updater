@@ -15,6 +15,7 @@ Options:
     --help, -h            Display this message
     --verbose, -v         Show extra logging info
     --ttl TTL, -t TTL     Override existing and/or default TTL
+    --max-tries INT       Max attempts to get public IP [default: 5]
     --sns SNS_TOPIC_ARN   Optional SNS topic ARN to notify on record updates
 
 To protect incorrect configurations or accidental typos, r53_dns_updater won't
@@ -51,10 +52,11 @@ class DynamicDnsRecord(object):
     Class to manage a Dynamic DNS record that needs to be kept up-to-date
     """
 
-    def __init__(self, target_record, sns_arn=None):
+    def __init__(self, target_record, max_tries=5, sns_arn=None):
         """
         Args:
             target_record (str): The DNS record to update
+            max_tries (int): How many tries to get public IP (default: 5)
             sns_arn (str): Optional SNS topic to notify on record changes
         """
         if not isinstance(target_record, str):
@@ -71,7 +73,7 @@ class DynamicDnsRecord(object):
         self._domain_name = None  # str()
 
         self.hosted_zone = self.r53_hosted_zones[self.domain_name]
-        self.actual_ip = self.get_public_ip()
+        self.actual_ip = self.get_public_ip(int(max_tries))
         self.current_ip, self.current_ttl = self.get_current_record()
 
     @property
@@ -136,7 +138,7 @@ class DynamicDnsRecord(object):
 
         return self._domain_name
 
-    def get_public_ip(self, max_tries=None):
+    def get_public_ip(self, max_tries):
         """
         Get the actual public IP of the internet connection we're on.
 
@@ -151,20 +153,9 @@ class DynamicDnsRecord(object):
         Returns:
             str: public IP address
         """
-        tries = 0
-        if isinstance(max_tries, type(None)):
-            max_tries = 5  # default to 5 tries if no override is given
-        elif not isinstance(max_tries, int):
-            raise TypeError("get_public_ip(): 'max_tries' must be an int")
-
         # Attempt to resolve public IP, up to a maximum number of retries
+        tries = 1
         while True:
-            tries += 1
-            if tries > max_tries:
-                raise ValueError(
-                    "get_public_ip(): could not determine public IP address "
-                    "after {} attempts!".format(tries))
-
             # Get our public IP from AWS's service
             log.info('Getting public IP address from AWS: attempt %s', tries)
             response = requests.get('http://checkip.amazonaws.com')
@@ -180,6 +171,14 @@ class DynamicDnsRecord(object):
                               candidate_ip)
             except ValueError as e:
                 log.error(e)
+
+            # If we're still here, we haven't gotten our public IP...
+            if tries >= max_tries:  # fail if we're over limit
+                raise ValueError(
+                    "get_public_ip(): could not determine public IP address "
+                    "after {} attempts!".format(tries))
+            else:  # try again if we're still under limit
+                tries += 1
 
     def get_current_record(self):
         """
@@ -352,8 +351,9 @@ def main():
     log.addHandler(log_console)
 
     # Init our class object
-    dns_record = DynamicDnsRecord(args['<target_record>'],
-                                  args['--sns'])
+    dns_record = DynamicDnsRecord(target_record=args['<target_record>'],
+                                  max_tries=args['--max-tries'],
+                                  sns_arn=args['--sns'])
 
     # Update the DNS record if it's out-of-date
     dns_record.update_target_record_value(ttl=args['--ttl'])
