@@ -125,13 +125,13 @@ class DynamicDnsRecord(object):
                     try:  # If we have no more parts, `del` will fail
                         del domain[0]
                     except IndexError:
-                        log.critical('DNS record \'%s\' does not belong ' +
-                                     'to a valid Route53 hosted zone in ' +
+                        log.critical('DNS record \'%s\' does not belong '
+                                     'to a valid Route53 hosted zone in '
                                      'the given AWS account!',
                                      self.target_record)
                         sys.exit(1)
             self._domain_name = '.'.join(domain)
-            log.info('Determined the target record \'%s\' belongs to ' +
+            log.info('Determined the target record \'%s\' belongs to '
                      'the hosted zone \'%s\' (%s)',
                      self.target_record, self._domain_name,
                      self.r53_hosted_zones[self._domain_name])
@@ -228,9 +228,9 @@ class DynamicDnsRecord(object):
 
         # Validate our record targets agains expected values
         if len(our_record_targets) > 1:
-            msg = ('Error: It appears the specified record \'{}\' has ' +
-                   'more than one target! Are you sure you specified the ' +
-                   'correct record? If so, please manually remove the ' +
+            msg = ('Error: It appears the specified record \'{}\' has '
+                   'more than one target! Are you sure you specified the '
+                   'correct record? If so, please manually remove the '
                    'targets (or leave just one).').format(self.target_record)
             raise InvalidRecordTargetError(msg)
         elif len(our_record_targets) < 1:
@@ -294,7 +294,7 @@ class DynamicDnsRecord(object):
 
         # Only make the change if the IP is actually different
         if self.actual_ip != self.current_ip:
-            log.warning('Updating out-of-date DNS record \'%s\' ' +
+            log.warning('Updating out-of-date DNS record \'%s\' '
                         'to point to %s (previous target: %s)',
                         self.target_record,
                         self.actual_ip,
