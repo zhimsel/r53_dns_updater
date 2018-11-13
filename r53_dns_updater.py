@@ -244,7 +244,7 @@ class DynamicDnsRecord(object):
         Args:
             msg (str): body for the SNS message
         """
-        if isinstance(self.sns_arn, type(None)):
+        if not sns_arn:
             raise ValueError(
                 "publish_to_sns(): trying to publish to an SNS topic, "
                 "but 'sns_arn' was not provided")
@@ -270,16 +270,16 @@ class DynamicDnsRecord(object):
         # If the user specified a TTL override, use that. Otherwise, use the
         # existing target record's TTL. If the target record doesn't exist,
         # use a sane default of 60.
-        if ttl is None:
-            if self.current_ttl is not None:
+        if ttl:
+            log.info('Overriding TTL with provided value of %s', ttl)
+        else:
+            if self.current_ttl:
                 ttl = self.current_ttl
                 log.info('Using existing TTL value of %s', ttl)
             else:
                 ttl = 60
                 log.info('No existing record found, using default TTL of %s',
                          ttl)
-        else:
-            log.info('Overriding TTL with provided value of %s', ttl)
 
         # Only make the change if the IP is actually different
         if self.actual_ip != self.current_ip:
