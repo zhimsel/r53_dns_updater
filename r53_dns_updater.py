@@ -26,6 +26,15 @@ overwrite any records that:
 If the target record already exists, the existing TTL value will be used.
 If the target record does not exist, a TTL of 60 seconds will be used.
 You can override this with the --ttl option (existing TTL will be ignored).
+
+Examples:
+
+    Set the record 'www.example.com' with your public IP (as seen by the
+    internet) with a TTL of 120:
+        r53_dns_updater -t 120 www.example.com
+
+    Use an SNS topic to notify you when the record changes:
+        r53_dns_updater --sns arn:aws:sns:<region>:<account:<topic> example.com
 """
 from docopt import docopt
 import logging
